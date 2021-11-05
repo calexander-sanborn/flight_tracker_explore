@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin="" />
+    <link rel='stylesheet' href="./index.css" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+    crossorigin=""></script>
+    <script type="text/javascript" src="leaflet.RotateMarker.js"></script>
+    <script type="text/javascript" src="MovingMarker.js"></script>
+
+
+  <title>FlightTest</title>
+</head>
+<body>
+  <div id="map"></div>
+</body>
+<script>
+// ////////////////////////////////////////////////////////////////////////////////
+// MAP
+
+  var map = L.map('map').setView([38.8211, -104.8001], 16);
+  
+  var baseStreetUrl = 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+  L.tileLayer(baseStreetUrl, {
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: 'Google, © 2008-' + (new Date()).getFullYear() + ', Sanborn',
+    minZoom: 0,
+    maxZoom: 25,
+    tms: false,
+    zIndex: 0
+  }).addTo(map);
+
+// ////////////////////////////////////////////////////////////////////////////////
+// POLYLINE
+
+var latlngs = [
+  [38.8211, -104.8001]
+];
+var polyline = L.polyline(latlngs, { color: 'red' }).addTo(map);
+
+
+// ////////////////////////////////////////////////////////////////////////////////
+// Functions
+
+  function getAngle(A, B) {
+    var rads = null;
+    var latA = A[0];
+    var lonA = A[1];
+    var latB = B[0];
+    var lonB = B[1];
+
+    if (lonA == lonB && latA > latB) {
+      rads = Math.PI;
+    }
+    else if (lonA == lonB && latA < latB) {
+      rads = 0;
+    }
+    else if (lonA > lonB && latA == latB) {
+      rads = -(Math.PI / 2);
+    }
+    else if (lonA < lonB && latA == latB) {
+      rads = Math.PI / 2;
+    }
+    else {
+      var x1 = A[0] * Math.pow(10, 12);
+      var x2 = B[0] * Math.pow(10, 12);
+      var y1 = A[1] * Math.pow(10, 12);
+      var y2 = B[1] * Math.pow(10, 12);
+      rads = Math.atan2(y2 - y1, x2 - x1)
+    }
+    var pi = Math.PI;
+    var angle = rads * (180 / pi);
+    return angle.toFixed(0);
+  }
+
+// ////////////////////////////////////////////////////////////////////////////////
+// PLANE MARKER
+  var angle = 0;
+  var duration = 2000;
+
+  var planeIcon = L.icon({
+    iconUrl: 'plane.svg',
+    iconSize: [36, 36], // size of the icon
+    iconAnchor: [18, 18]
+  });
+
+
+  var marker = L.Marker.movingMarker([[38.8211, -104.8001], [38.8231, -104.8001]],
+      [duration], {
+        icon: planeIcon,
+        rotationAngle: 0,
+        rotationOrigin: 'center'
+      }).addTo(map);
+
+for(let step = 0; step < 100; step++){
+  setTimeout(function timer() {
+    var current_coords = latlngs[step]
+    var new_coords;
+    if(step % 3 == 0){
+      new_coords = [current_coords[0] - 0.0003, current_coords[1] - 0.0001]
+    }else{
+      new_coords = [current_coords[0] - 0.0001, current_coords[1] - 0.0003]
+    }
+
+    latlngs.push(new_coords)
+
+    polyline.addLatLng(new_coords)
+    marker.moveTo(new_coords, duration);
+
+    angle = getAngle(current_coords, new_coords)
+    marker.setRotationAngle(angle)
+
+  }, step * duration);
+};
+</script>
+</html>
