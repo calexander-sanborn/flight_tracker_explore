@@ -1,3 +1,5 @@
+
+
 L.interpolatePosition = function (p1, p2, duration, t) {
   var k = t / duration;
   k = (k > 0) ? k : 0;
@@ -19,6 +21,9 @@ L.Marker.MovingMarker = L.Marker.extend({
   options: {
     autostart: false,
     loop: false,
+    tempLine: false,
+    tempLineColor: 'orange',
+    tempLineOpacity: '30%'
   },
 
   initialize: function (latlngs, durations, options) {
@@ -45,6 +50,13 @@ L.Marker.MovingMarker = L.Marker.extend({
     this._animRequested = false;
     this._currentLine = [];
     this._stations = {};
+
+    if(this.options.tempLine){
+      this._tempLine = L.polyline([], {
+        color: this.options.tempLineColor,
+        opacity: this.options.tempLineOpacity
+      });
+    };
   },
 
   isRunning: function () {
@@ -138,6 +150,8 @@ L.Marker.MovingMarker = L.Marker.extend({
 
   onAdd: function (map) {
     L.Marker.prototype.onAdd.call(this, map);
+
+    this._tempLine.addTo(map);
 
     if (this.options.autostart && (!this.isStarted())) {
       this.start();
@@ -274,10 +288,8 @@ L.Marker.MovingMarker = L.Marker.extend({
 
   _animate: function (timestamp, noRequestAnim) {
     this._animRequested = false;
-
     // find the next line and compute the new elapsedTime
     var elapsedTime = this._updateLine(timestamp);
-
     if (this.isEnded()) {
       // no need to animate
       return;
@@ -290,6 +302,10 @@ L.Marker.MovingMarker = L.Marker.extend({
         this._currentDuration,
         elapsedTime);
       this.setLatLng(p);
+
+      if (this.options.tempLine) {
+        this._tempLine.setLatLngs([this._currentLine[0], p]);
+      }
     }
 
     if (!noRequestAnim) {

@@ -31,7 +31,6 @@
         this._icon.style[L.DomUtil.TRANSFORM + 'Origin'] = this.options.rotationOrigin;
           // for modern browsers, prefer the 3D accelerated version
           this._icon.style[L.DomUtil.TRANSFORM] += ' rotateZ(' + this.options.rotationAngle + 'deg)';
-          this._icon.style[L.DomUtil.TRANSITION] += ' all 0.25s';
       }
     },
 

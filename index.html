@@ -9,12 +9,19 @@
     integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
     crossorigin="" />
     <link rel='stylesheet' href="./index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.1/dist/leaflet.timedimension.control.min.css" />
   <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
     integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
     crossorigin=""></script>
     <script type="text/javascript" src="leaflet.RotateMarker.js"></script>
     <script type="text/javascript" src="MovingMarker.js"></script>
+    <script type="text/javascript" src="leaflet.PolylineDecorator.js"></script>
+    <script type="text/javascript" src="L.Symbol.js"></script>
+    <script type="text/javascript" src="patternUtils.js"></script>
 
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/iso8601-js-period@0.2.1/iso8601.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.1/dist/leaflet.timedimension.min.js"></script>
 
   <title>FlightTest</title>
 </head>
@@ -25,9 +32,34 @@
 // ////////////////////////////////////////////////////////////////////////////////
 // MAP
 
-  var map = L.map('map').setView([38.8211, -104.8001], 16);
+  var endDate = new Date();
+  endDate.setUTCMinutes(0, 0, 0);
+
   
+  var map = L.map('map', {
+      zoom: 4,
+      fullscreenControl: true,
+      timeDimension: true,
+      timeDimensionControl: true,
+      timeDimensionOptions: {
+        timeInterval: "PT4H/" + endDate.toISOString(),
+        period: "PT4M",
+        currentTime: endDate
+      },
+
+      timeDimensionControlOptions: {
+        autoPlay: false,
+        playerOptions: {
+          buffer: 10,
+          transitionTime: 250,
+          loop: true,
+        }
+      },
+      center: [38.0, -90.50],
+    });
+
   var baseStreetUrl = 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+
   L.tileLayer(baseStreetUrl, {
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
     attribution: 'Google, © 2008-' + (new Date()).getFullYear() + ', Sanborn',
@@ -36,15 +68,56 @@
     tms: false,
     zIndex: 0
   }).addTo(map);
+// ////////////////////////////////////////////////////////////////////////////////////
+
+  var wmsUrl = "https://nowcoast.noaa.gov/arcgis/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/WMSServer"
+  var radarWMS = L.tileLayer.wms(wmsUrl, {
+    layers: '1',
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.8,
+    attribution: 'nowCOAST'
+  });
+  var testTimeLayer = L.timeDimension.layer.wms(radarWMS, {
+    updateTimeDimension: false,
+    wmsVersion: '1.3.0'
+  });
+  testTimeLayer.addTo(map);
+
+  var theLegend = L.control({
+    position: 'topright'
+  });
+
+  theLegend.onAdd = function (map) {
+    var src = "https://nowcoast.noaa.gov/images/legends/radar.png";
+    var div = L.DomUtil.create('div', 'info legend');
+    div.style.width = '270px';
+    div.style.height = '50px';
+    div.innerHTML += '<b>Legend</b><br><img src="' + src + '" alt="legend">';
+    return div;
+  };
+
+  theLegend.addTo(map);
+
+
+  
 
 // ////////////////////////////////////////////////////////////////////////////////
 // POLYLINE
 
+//Initial Position
 var latlngs = [
-  [38.8211, -104.8001]
+  [38.80191266823473, -104.69899901104442]
 ];
-var polyline = L.polyline(latlngs, { color: 'red' }).addTo(map);
+var start_coords = latlngs[0]
+var polyline = L.polyline(latlngs).addTo(map);
 
+var decorator = L.polylineDecorator(polyline, {
+    patterns: [
+      // defines a pattern of 10px-wide dashes, repeated every 20px on the line
+      { offset: 0, repeat: 60, symbol: new L.Symbol.arrowHead({ pixelSize: 10 }) }
+    ]
+  }).addTo(map);
 
 // ////////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -69,10 +142,10 @@ var polyline = L.polyline(latlngs, { color: 'red' }).addTo(map);
       rads = Math.PI / 2;
     }
     else {
-      var x1 = A[0] * Math.pow(10, 12);
-      var x2 = B[0] * Math.pow(10, 12);
-      var y1 = A[1] * Math.pow(10, 12);
-      var y2 = B[1] * Math.pow(10, 12);
+      var x1 = latA * Math.pow(10, 12);
+      var x2 = latB * Math.pow(10, 12);
+      var y1 = lonA * Math.pow(10, 12);
+      var y2 = lonB * Math.pow(10, 12);
       rads = Math.atan2(y2 - y1, x2 - x1)
     }
     var pi = Math.PI;
@@ -83,41 +156,48 @@ var polyline = L.polyline(latlngs, { color: 'red' }).addTo(map);
 // ////////////////////////////////////////////////////////////////////////////////
 // PLANE MARKER
   var angle = 0;
-  var duration = 2000;
+  var duration = 2000; //time in secs for marker to move from A to B. 
 
   var planeIcon = L.icon({
     iconUrl: 'plane.svg',
-    iconSize: [36, 36], // size of the icon
-    iconAnchor: [18, 18]
+    iconSize: [24, 24], // size of the icon
+    iconAnchor: [12, 12],
+    className: 'plane'
   });
 
+  var marker = L.Marker.movingMarker([start_coords, [38.8231, -104.8001]], [duration], {
+                  icon: planeIcon,
+                  rotationAngle: 0,
+                  rotationOrigin: 'center',
+                  tempLine: true,
+                  tempLineColor: 'orange'
+                }).addTo(map);
 
-  var marker = L.Marker.movingMarker([[38.8211, -104.8001], [38.8231, -104.8001]],
-      [duration], {
-        icon: planeIcon,
-        rotationAngle: 0,
-        rotationOrigin: 'center'
-      }).addTo(map);
 
-for(let step = 0; step < 100; step++){
+////////////////////////////////////////////////////////////////////////////////
+// LatLng Maker (Dev Only)
+
+for(let step = 0; step < 10; step++){
   setTimeout(function timer() {
     var current_coords = latlngs[step]
-    var new_coords;
+    var next_coords;
     if(step % 3 == 0){
-      new_coords = [current_coords[0] - 0.0003, current_coords[1] - 0.0001]
+      next_coords = [current_coords[0] + 0.003, current_coords[1] + 0.002]
     }else{
-      new_coords = [current_coords[0] - 0.0001, current_coords[1] - 0.0003]
+      next_coords = [current_coords[0] + 0.002, current_coords[1] + 0.003]
     }
 
-    latlngs.push(new_coords)
-
-    polyline.addLatLng(new_coords)
-    marker.moveTo(new_coords, duration);
-
-    angle = getAngle(current_coords, new_coords)
+    latlngs.push(next_coords)
+    angle = getAngle(current_coords, next_coords)
     marker.setRotationAngle(angle)
+    marker.moveTo(next_coords, duration);
 
+    polyline.addLatLng(current_coords)
+    decorator.redraw()
   }, step * duration);
 };
+
+
 </script>
+
 </html>
